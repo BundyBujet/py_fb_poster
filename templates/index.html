@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Auto Poster</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f8f8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-size: 14px;
+            color: #333;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        table th, table td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        table th {
+            background-color: #f2f2f2;
+            color: #333;
+        }
+
+        table td {
+            word-wrap: break-word;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .actions button {
+            background-color: #f44336;
+            padding: 5px 10px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .actions button:hover {
+            background-color: #e53935;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: center;
+        }
+
+        textarea {
+            height: 100px;
+            overflow: auto;
+        }
+
+        /* Responsive Design */
+        @media screen and (max-width: 768px) {
+            table th, table td {
+                font-size: 12px;
+            }
+
+            .container {
+                width: 90%;
+            }
+
+            input[type="text"], input[type="number"], textarea, select {
+                font-size: 12px;
+            }
+
+            button {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Facebook Auto Poster</h1>
+
+        <!-- User Access Token Section -->
+        <div class="section">
+            <label for="user_access_token">User Access Token:</label>
+            <input type="text" id="user_access_token" placeholder="Enter User Access Token" />
+            <button onclick="getPages()">Get Pages</button>
+        </div>
+
+        <!-- Pages Dropdown -->
+        <div class="section" id="pages_section" style="display:none;">
+            <label for="pages">Select Page:</label>
+            <select id="pages" onchange="updatePageInfo()">
+                <option>Select Page</option>
+            </select>
+        </div>
+
+        <!-- Page Access Token and ID -->
+        <div class="section">
+            <label for="page_token">Page Access Token:</label>
+            <input type="text" id="page_token" readonly />
+
+            <label for="page_id">Page ID:</label>
+            <input type="text" id="page_id" readonly />
+        </div>
+
+        <!-- Content, Image and Interval -->
+        <div class="section">
+            <label for="content">Post Content:</label>
+            <textarea id="content" placeholder="Enter content"></textarea>
+
+            <label for="image">Select Image:</label>
+            <input type="file" id="image" />
+
+            <label for="interval">Post Interval (minutes):</label>
+            <input type="number" id="interval" value="10" />
+
+            <label for="delay">Delay between posts (seconds):</label>
+            <input type="number" id="delay" value="60" />
+        </div>
+
+        <!-- Start and Stop Buttons -->
+        <div class="section">
+            <button onclick="startPosting()">Start Posting</button>
+            <button onclick="stopPosting()">Stop Posting</button>
+        </div>
+
+        <!-- Schedule Table -->
+        <h2>Scheduled Posts</h2>
+        <table id="schedule_table">
+            <thead>
+                <tr>
+                    <th>Page Name</th>
+                    <th>Page ID</th>
+                    <th>Interval (minutes)</th>
+                    <th>Delay (seconds)</th>
+                    <th>Content</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let currentPageToken = "";
+        let currentPageId = "";
+
+        // Function to fetch pages
+        function getPages() {
+            const userAccessToken = document.getElementById('user_access_token').value;
+            if (!userAccessToken) {
+                alert('Please enter the User Access Token');
+                return;
+            }
+
+            fetch('/get_pages', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    'user_access_token': userAccessToken
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                const pagesSelect = document.getElementById('pages');
+                pagesSelect.innerHTML = "<option>Select Page</option>";
+                data.pages.forEach(page => {
+                    const option = document.createElement('option');
+                    option.value = page.id;
+                    option.textContent = page.name;
+                    option.dataset.token = page.access_token;  // Adding Access Token to the option
+                    pagesSelect.appendChild(option);
+                });
+
+                document.getElementById('pages_section').style.display = 'block';
+            });
+        }
+
+        // Function to update page token and ID when a page is selected
+        function updatePageInfo() {
+            const pageSelect = document.getElementById('pages');
+            const selectedPageId = pageSelect.value;
+            const selectedOption = pageSelect.selectedOptions[0];
+            const pageToken = selectedOption.dataset.token;
+
+            document.getElementById('page_token').value = pageToken;
+            document.getElementById('page_id').value = selectedPageId;
+        }
+
+        // Function to start posting
+        function startPosting() {
+            const pageId = document.getElementById('page_id').value;
+            const pageToken = document.getElementById('page_token').value;
+            const content = document.getElementById('content').value;
+            const interval = document.getElementById('interval').value;
+            const delay = document.getElementById('delay').value;
+
+            if (!pageId || !pageToken || !content || !interval || !delay) {
+                alert('Please fill all fields');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('page_id', pageId);
+            formData.append('page_token', pageToken);
+            formData.append('content', content);
+            formData.append('interval', interval);
+            formData.append('delay', delay);
+
+            const image = document.getElementById('image').files[0];
+            if (image) {
+                formData.append('image', image);
+            }
+
+            fetch('/post_content', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert(data.message);
+                    // Adding the schedule to the table
+                    addScheduleToTable(data.jobId, pageId, pageToken, content, interval, delay);
+                }
+            });
+        }
+
+        // Function to add schedule to the table and localStorage
+        function addScheduleToTable(jobId, pageId, pageToken, content, interval, delay) {
+            const table = document.getElementById('schedule_table').getElementsByTagName('tbody')[0];
+            
+            // Avoid adding the same jobId again by checking if it exists in the table
+            if (document.querySelector(`[data-job-id="${jobId}"]`)) {
+                return;  // Prevent adding a duplicate entry
+            }
+
+            const pageName = document.getElementById('pages').selectedOptions[0].text;
+
+            const row = table.insertRow();
+            row.setAttribute('data-job-id', jobId);  // Add unique jobId to each row
+            row.innerHTML = `  
+                <td>${pageName}</td>
+                <td>${pageId}</td>
+                <td>${interval}</td>
+                <td>${delay}</td>
+                <td style="max-width: 200px; overflow: auto; text-overflow: ellipsis;">${content}</td>
+                <td class="actions"><button onclick="deleteSchedule('${jobId}')">Delete</button></td>
+            `;
+
+            // Save to localStorage
+            const schedules = getSchedulesFromLocalStorage();
+            schedules.push({ jobId, pageId, pageToken, content, interval, delay });
+            localStorage.setItem('schedules', JSON.stringify(schedules));
+        }
+
+        // Function to delete a schedule from the UI and localStorage
+        function deleteSchedule(jobId) {
+            // Immediately remove from the table and localStorage without delay
+            removeScheduleFromTable(jobId);
+            removeScheduleFromLocalStorage(jobId);
+
+            // Notify server to delete the schedule
+            fetch('/delete_schedule', {
+                method: 'POST',
+                body: new URLSearchParams({
+                    'job_id': jobId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert(data.message);  // Success message after deleting
+                }
+            });
+        }
+
+        // Function to remove a schedule from localStorage
+        function removeScheduleFromLocalStorage(jobId) {
+            const schedules = getSchedulesFromLocalStorage();
+            const updatedSchedules = schedules.filter(schedule => schedule.jobId !== jobId);
+            localStorage.setItem('schedules', JSON.stringify(updatedSchedules));
+        }
+
+        // Function to remove a schedule from the table
+        function removeScheduleFromTable(jobId) {
+            const table = document.getElementById('schedule_table');
+            const rows = table.getElementsByTagName('tr');
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.getAttribute('data-job-id') === jobId) {
+                    table.deleteRow(i);
+                    break;
+                }
+            }
+        }
+
+        // Function to retrieve schedules from localStorage
+        function getSchedulesFromLocalStorage() {
+            const schedules = localStorage.getItem('schedules');
+            return schedules ? JSON.parse(schedules) : [];
+        }
+
+        // Function to load the scheduled posts from localStorage
+        function loadSchedules() {
+            const schedules = getSchedulesFromLocalStorage();
+            schedules.forEach(schedule => {
+                addScheduleToTable(schedule.jobId, schedule.pageId, schedule.pageToken, schedule.content, schedule.interval, schedule.delay);
+            });
+        }
+
+        // Call loadSchedules on page load
+        window.onload = function() {
+            loadSchedules();
+        };
+
+    </script>
+</body>
+</html>
